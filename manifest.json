@@ -1,0 +1,25 @@
+{
+  "name": "Buku Kas — Catatan Keuangan",
+  "short_name": "Buku Kas",
+  "description": "Catatan pemasukan gaji dan pengeluaran per kategori",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#DDD4BC",
+  "theme_color": "#22304A",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
