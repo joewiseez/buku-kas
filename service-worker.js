@@ -1,4 +1,4 @@
-const CACHE_NAME = 'buku-kas-cache-v2';
+const CACHE_NAME = 'buku-kas-cache-v3';
 const ASSETS = [
   './',
   './index.html',

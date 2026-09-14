@@ -238,6 +238,63 @@
   .bar-fill.bebas{background:var(--bebas);}
 
   .tx-list{display:flex;flex-direction:column;}
+  .tx-header-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    border-bottom:1px solid var(--paper-line);
+    padding-bottom:6px;
+    margin-bottom:10px;
+    gap:8px;
+  }
+  .period-select{
+    font-family:'Work Sans',sans-serif;
+    font-size:12px;
+    font-weight:600;
+    color:var(--ink);
+    border:1px solid var(--paper-line);
+    border-radius:4px;
+    padding:5px 8px;
+    background:#fff;
+    max-width:52%;
+  }
+  .month-group{margin-bottom:18px;}
+  .month-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    background:rgba(34,48,74,0.06);
+    border-radius:5px;
+    padding:8px 10px;
+    margin-bottom:6px;
+  }
+  .month-header .month-name{
+    font-family:'Fraunces',serif;
+    font-weight:700;
+    font-size:15px;
+  }
+  .month-header .month-stats{
+    text-align:right;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--ink-soft);
+    line-height:1.5;
+  }
+  .month-header .month-stats .out{color:var(--rule-red);}
+  .month-header .month-stats .in{color:var(--income);}
+  .tx-icon{
+    width:34px;height:34px;
+    border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    color:#fff;font-weight:700;font-size:14px;
+    font-family:'Work Sans',sans-serif;
+    flex-shrink:0;
+  }
+  .tx-icon.income{background:var(--income);}
+  .tx-icon.pokok{background:var(--pokok);}
+  .tx-icon.investasi{background:var(--investasi);}
+  .tx-icon.darurat{background:var(--darurat);}
+  .tx-icon.bebas{background:var(--bebas);}
   .tx-row{
     display:flex;
     justify-content:space-between;
@@ -245,9 +302,11 @@
     padding:10px 0;
     border-bottom:1px dashed var(--paper-line);
     font-size:13px;
-    gap:8px;
+    gap:10px;
   }
+  .tx-main{display:flex;align-items:center;gap:10px;min-width:0;}
   .tx-left{display:flex;flex-direction:column;gap:1px;min-width:0;}
+  .tx-name{font-weight:600;font-size:13.5px;color:var(--ink);}
   .tx-cat{
     font-size:10px;
     text-transform:uppercase;
@@ -365,7 +424,10 @@
     <h2 class="section-title">Ringkasan per Kategori</h2>
     <div class="cat-summary" id="cat-summary"></div>
 
-    <h2 class="section-title">Riwayat Transaksi</h2>
+    <div class="tx-header-row">
+      <h2 class="section-title" style="border:none;margin:0;padding:0;">Riwayat Transaksi</h2>
+      <select id="period-filter" class="period-select"></select>
+    </div>
     <div class="tx-list" id="tx-list"></div>
   </div>
 </div>
@@ -603,32 +665,104 @@ function render(){
     `;
   }).join('');
 
-  // Transaction list, newest first
-  const sorted = [...transactions].sort((a,b)=> b.date.localeCompare(a.date) || b.id - a.id);
+  // Filter periode + kelompokkan per bulan (seperti riwayat transaksi mobile banking)
+  populatePeriodOptions();
+  const period = document.getElementById('period-filter').value || 'all';
+  const filtered = period === 'all'
+    ? transactions
+    : transactions.filter(t => t.date.slice(0,7) === period);
+
+  const sorted = [...filtered].sort((a,b)=> b.date.localeCompare(a.date) || b.id - a.id);
   const listEl = document.getElementById('tx-list');
   if(sorted.length === 0){
-    listEl.innerHTML = '<div class="empty">Belum ada transaksi. Mulai catat pemasukan atau pengeluaran di atas.</div>';
+    listEl.innerHTML = '<div class="empty">Belum ada transaksi untuk periode ini.</div>';
     return;
   }
-  listEl.innerHTML = sorted.map(t=>{
-    const isIncome = t.type === 'income';
-    const catClass = isIncome ? 'income' : t.category;
-    const catLabel = isIncome ? (t.source || 'Pemasukan') : CAT_LABELS[t.category];
-    const noteHtml = t.note ? `<span class="tx-note">${escapeHtml(t.note)}</span>` : '';
+
+  // Kelompokkan berdasarkan bulan (YYYY-MM)
+  const groups = {};
+  sorted.forEach(t=>{
+    const key = t.date.slice(0,7);
+    if(!groups[key]) groups[key] = [];
+    groups[key].push(t);
+  });
+
+  const monthNames = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+  listEl.innerHTML = Object.keys(groups).sort().reverse().map(key=>{
+    const [y,m] = key.split('-');
+    const monthLabel = `${monthNames[parseInt(m,10)-1]} ${y}`;
+    const rows = groups[key];
+    const monthIn = rows.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+    const monthOut = rows.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+
+    const rowsHtml = rows.map(t=>{
+      const isIncome = t.type === 'income';
+      const catClass = isIncome ? 'income' : t.category;
+      const catLabel = isIncome ? (t.source || 'Pemasukan') : CAT_LABELS[t.category];
+      const initial = catLabel.charAt(0).toUpperCase();
+      const noteHtml = t.note ? `<span class="tx-note">${escapeHtml(t.note)}</span>` : '';
+      const timeLabel = formatDateTime(t.date, t.id);
+      return `
+        <div class="tx-row">
+          <div class="tx-main">
+            <div class="tx-icon ${catClass}">${initial}</div>
+            <div class="tx-left">
+              <span class="tx-name">${escapeHtml(catLabel)}</span>
+              <span class="tx-cat ${catClass}">${isIncome ? 'Pemasukan' : 'Pengeluaran'}</span>
+              ${noteHtml}
+              <span class="tx-date">${timeLabel}</span>
+            </div>
+          </div>
+          <div class="tx-right">
+            <span class="tx-amount ${isIncome ? 'income' : 'expense'}">${isIncome ? '+' : '-'}${formatRp(t.amount)}</span>
+            <button class="del-btn" onclick="deleteTx(${t.id})" aria-label="Hapus transaksi">✕</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+
     return `
-      <div class="tx-row">
-        <div class="tx-left">
-          <span class="tx-cat ${catClass}">${catLabel}</span>
-          ${noteHtml}
-          <span class="tx-date">${formatDate(t.date)}</span>
+      <div class="month-group">
+        <div class="month-header">
+          <span class="month-name">${monthLabel}</span>
+          <span class="month-stats">
+            <span class="out">Keluar: ${formatRp(monthOut)}</span><br>
+            <span class="in">Masuk: ${formatRp(monthIn)}</span>
+          </span>
         </div>
-        <div class="tx-right">
-          <span class="tx-amount ${isIncome ? 'income' : 'expense'}">${isIncome ? '+' : '-'}${formatRp(t.amount)}</span>
-          <button class="del-btn" onclick="deleteTx(${t.id})" aria-label="Hapus transaksi">✕</button>
-        </div>
+        ${rowsHtml}
       </div>
     `;
   }).join('');
+}
+
+// Isi opsi dropdown filter periode berdasarkan bulan yang ada datanya
+function populatePeriodOptions(){
+  const sel = document.getElementById('period-filter');
+  const currentValue = sel.value;
+  const monthNames = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+  const monthsSet = new Set(transactions.map(t => t.date.slice(0,7)));
+  const months = Array.from(monthsSet).sort().reverse();
+  let optionsHtml = '<option value="all">Semua Transaksi</option>';
+  optionsHtml += months.map(key=>{
+    const [y,m] = key.split('-');
+    return `<option value="${key}">${monthNames[parseInt(m,10)-1]} ${y}</option>`;
+  }).join('');
+  sel.innerHTML = optionsHtml;
+  // pertahankan pilihan sebelumnya kalau masih ada di daftar
+  if(currentValue && (currentValue === 'all' || months.includes(currentValue))){
+    sel.value = currentValue;
+  }
+}
+document.getElementById('period-filter').addEventListener('change', render);
+
+// Ambil jam dari waktu pembuatan transaksi (id = timestamp), tanggal dari field date
+function formatDateTime(dateStr, id){
+  const dateLabel = formatDate(dateStr);
+  const created = new Date(id);
+  if(isNaN(created.getTime())) return dateLabel;
+  const timeLabel = created.toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'});
+  return `${dateLabel}, ${timeLabel}`;
 }
 
 function escapeHtml(str){
